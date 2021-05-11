@@ -1,0 +1,151 @@
+name: finalsetup
+
+setup: 
+
+#download tibtunnel & chmod +x
+  - name: downloadTibtunnel
+    type: foreground
+    exec:
+      timeout: 10m
+      script:
+        cmd: "/bin/bash"
+        args: ["-c",  "curl -v -O  ${TIBTUNNEL_DARWIN} && chmod +x tibtunnel"]
+        #args: ["-c", "timeout 10s ./tibtunnel connect -d --remote-debug -s 8081:localhost:8081 https://tcds-tunnel.tenant-integration.tcie.pro/tcp-client1 -l ./tibtunnelLog" ]
+    expect:
+      - name: status
+        operator: equal
+        value: 0
+
+#download tcp-server & chmod +x
+  - name: downloadTcpServer
+    type: foreground
+    exec:
+      timeout: 10m
+      script:
+        cmd: "/bin/bash"
+        args: ["-c",  "curl -v -O  ${TCP_SERVER_DARWIN} && chmod +x tcp-server"]
+        #args: ["-c", "timeout 10s ./tibtunnel connect -d --remote-debug -s 8081:localhost:8081 https://tcds-tunnel.tenant-integration.tcie.pro/tcp-client1 -l ./tibtunnelLog" ]
+    expect:
+      - name: status
+        operator: equal
+        value: 0
+
+#get the compute service pod
+  - name: getComputeServicesPODName
+    type: foreground
+    exec:
+      timeout: 1m
+      script:
+        cmd: "kubectl"
+        args: ["get", "pods","-l", "app.kubernetes.io/name=compute-services", "-n", "${NAMESPACE-SYSTEM}", "-ojson"]
+        capture:
+          stdout:
+            - name: ComputePod
+              match: "{.items[0].metadata.name}"
+              matchType: jsonpath
+    expect:
+      - name: status
+        operator: equal
+        value: 0
+
+#hash and Secretkey generation
+  - name: accessKeyHashGeneration
+    type: foreground
+    exec:
+      timeout: 2m
+      script:
+        cmd: "kubectl"
+        args: ["exec", "-n", "${NAMESPACE-SYSTEM}", "${suite.setup.getComputeServicesPODName.ComputePod}", "--", "curl", "-s", "-X", "POST", "http://localhost:9979/v1/stratosphere/accesskeys"]
+        capture:
+          stdout:
+            - name: accessKeyHash
+              match: "{.accessKeyHash}"
+              matchType: jsonpath
+            - name: accessKeySecret
+              match: "{.accessKeySecret}"
+              matchType: jsonpath
+    expect:
+      - name: status
+        operator: equal
+        value: 0
+
+#deploy yaml file 
+  - name: deploy_yaml_file
+    type: foreground
+    templates: 
+      - input: "./resources/services/vs.yaml"
+        output: "./generated/vs.yaml"
+    exec: 
+      timeout: 2m
+      script:
+        cmd: "kubectl"
+        args: ["apply", "-f", "./generated/vs.yaml"]
+    expect:
+      - name: status
+        operator: equal
+        value: 0
+
+
+teardown:
+
+# delete the cr_file
+  - name: delete_yaml_file
+    type: foreground
+    exec: 
+      timeout: 1m
+      script:
+        cmd: "kubectl"
+        args: ["delete", "-f", "./generated/vs.yaml"]
+    expect:
+      - name: status
+        operator: equal
+        value: 0
+
+# reverify whether deleted or not
+  - name: confirm_deletion
+    type: foreground
+    exec: 
+      timeout: 1m
+      script: 
+        cmd: "kubectl"
+        args: ["get", "tibcotunnelroute", "-n", "${NAMESPACE}", "-o", "json"]
+        capture:
+          stdout: 
+            - name: confirm_delete
+              matchType: jsonpath
+              match: "{.items[*].metadata.name}"
+    expect:
+      - name: status
+        operator: equal
+        value: 0
+      - name: confirm_delete
+        operator: notContainsStr
+        value: "${META_DATA_NAME}"
+
+#remove tcp-server_binary
+  - name: rmTcp-server
+    type: foreground
+    exec:
+      timeout: 30s
+      script:
+        cmd: "/bin/bash"
+        args: ["-c", "rm tcp-server"]
+        #args: ["-c", "timeout 10s ./tibtunnel connect -d --remote-debug -s 8081:localhost:8081 https://tcds-tunnel.tenant-integration.tcie.pro/tcp-client1 -l ./tibtunnelLog" ]
+    expect:
+      - name: status
+        operator: equal
+        value: 0
+
+#remove tibtunnel_binary
+  - name: rmTibtunnel
+    type: foreground
+    exec:
+      timeout: 30s
+      script:
+        cmd: "/bin/bash"
+        args: ["-c", "rm tibtunnel"]
+        #args: ["-c", "timeout 10s ./tibtunnel connect -d --remote-debug -s 8081:localhost:8081 https://tcds-tunnel.tenant-integration.tcie.pro/tcp-client1 -l ./tibtunnelLog" ]
+    expect:
+      - name: status
+        operator: equal
+        value: 0

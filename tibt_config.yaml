@@ -1,0 +1,39 @@
+name: tibtunnel_configure
+
+tasks: 
+
+#tibtunnel configuration & verification
+
+  - name: tibTunnelConfigureWithoutProfileName
+    type: foreground
+    exec:
+      timeout: 1m
+      script:
+        cmd: "/bin/bash"
+        args: ["-c", "./tibtunnel configure -a ${suite.setup.accessKeyHashGeneration.accessKeySecret} "]
+        #./tibtunnel configure -a <<accessKey>>
+        capture:
+          stdout:
+            - name: output
+              match: "((?s).*)"
+    expect:
+      - name: output
+        operator: containsStr
+        value: "Configuration for profile 'default' was successfully saved"
+
+  - name: verifyProfileSaved
+    type: foreground
+    exec:
+      timeout: 1m
+      script:
+        cmd: "/bin/bash"
+        args: ["-c", "cd /Users/akusingh/Testing/Tibtunnel_CIC-2 && cat ~/.tibtunnel/credentials"]
+        #./tibtunnel configure -a <<accessKey>>
+        capture:
+          stdout:
+            - name: output
+              match: "((?s).*)"
+    expect:
+      - name: output
+        operator: containsStr
+        value: "${suite.setup.accessKeyHashGeneration.accessKeySecret}"

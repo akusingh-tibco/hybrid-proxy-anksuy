@@ -1,0 +1,24 @@
+name: cr_status
+
+tasks: 
+
+#status of tibcotunnel route cr_deployed
+  - name: state_of_tibcotunnelroute
+    type: foreground
+    exec: 
+      timeout: 1m
+      script: 
+        cmd: "kubectl"
+        args: ["get", "tibcotunnelroute", "${META_DATA_NAME}", "-n", "${NAMESPACE}", "-o", "json"]
+        capture: 
+          stdout: 
+            - name : status_cr
+              matchType: jsonpath
+              match: "{.status.resource.state}"
+    expect:
+      - name: status
+        operator: equal
+        value: 0
+      - name: status_cr
+        operator: containsStr
+        value: "processed"
